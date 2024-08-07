@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            max-width: 550px;
+            margin: 10px auto;
+            background-color: #f1f1f1;
+        }
+
+        .container {
+            width: 100%;
+            border: 1px solid #666;
+            display: flex;
+            flex-wrap: wrap;
+            background-color: #1c1c1c;
+            position: relative;
+            border-radius: 5px;
+        }
+
+        .grid {
+            width: 5%;
+            
+        }
+
+        .grid::before {
+            display: block;
+            content: '';
+            width: 100%;
+            padding-top: 100%;
+        }
+
+    
+
+        .grid.fruit {
+            background-image: url('fruit.png');
+            background-size: 100%;
+            background-repeat: no-repeat;
+        }
+
+        .grid.wall {
+            background-color: #555; 
+            border: solid #424242;
+        }
+        
+
+        .game-over {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 30px;
+            font-weight: bold;
+            color: white;
+            width: 100%;
+        }
+
+        .score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+            color: white;
+            z-index: 10;
+        }
+
+        .highscore {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 20px;
+            color: white;
+            z-index: 10;
+        }
+        .snake{
+            background-size: 100%;
+            background-repeat: no-repeat;
+        }
+        .head-up{
+            background-image: url('head-top.png');
+        }
+        .head-down{
+            background-image: url('head-bottom.png');
+        }
+        .head-left{
+            background-image: url('head-left.png');
+        }
+        .head-right{
+            background-image: url('head-right.png');
+        }
+
+        .tail-down {
+            background-image: url('tail-bottom.png'); 
+        }
+
+        .tail-up {
+            background-image: url('tail-top.png'); 
+        }
+
+        .tail-right {
+            background-image: url('tail-right.png'); 
+        }
+
+        .tail-left {
+            background-image: url('tail-left.png'); 
+        }
+
+        .body-horizontal {
+            background-image: url('horizontal.png'); 
+        }
+
+        .body-vertical {
+            background-image: url('vertical.png'); 
+        }
+
+        .body-corner-down-left {
+            background-image: url('bottom-left.png'); 
+        }
+
+        .body-corner-down-right {
+            background-image: url('bottom-right.png'); 
+        }
+
+        .body-corner-up-left {
+            background-image: url('top-left.png'); 
+        }
+
+        .body-corner-up-right {
+            background-image: url('top-right.png'); 
+        }
+
+        
+    
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="score">Score: 0</div>
+        <div class="highscore">Highscore: 0</div>
+    </div>
+    <div class="game-over">Game Over! Try Again!</div>
+    <audio id="eat-sound" src="eat_fruit.mp3"></audio>
+    <audio id="game-over-sound" src="game_over.mp3"></audio>
+    
+    <script>
+        class Snake {
+            constructor() {
+                this.variableDeclaration();
+                this.moveSnake();
+                this.keyLogger();
+                this.generateFruit();
+                this.updateScore(0);
+                this.loadHighscore();
+            }
+
+
+            
+            variableDeclaration() {
+                this.container = document.querySelector('.container');
+                this.scoreDisplay = document.querySelector('.score');
+                this.highscoreDisplay = document.querySelector('.highscore');
+                this.snakeClass = 'snake';
+                this.fruitClass = 'fruit';
+                this.wallClass = 'wall';
+                this.isKeyPressed = false;
+                this.totalGrid=440
+                this.gridCalc=20
+                this.snakeBody = [227, 228, 229, 230];
+                
+                for (let x = 0; x < this.totalGrid; x++) {
+                    let isSnake = '';
+                    let isWall = '';
+                    if (x >= this.snakeBody[0] && x <= this.snakeBody[3]) {
+                        isSnake = ' ' + this.snakeClass;
+                        if(x==this.snakeBody[0]){
+                            isSnake = isSnake + ' tail-left'
+                        }
+                        else if(x==this.snakeBody[3]){
+                            isSnake = isSnake + ' head-right'
+                        }
+                        else{
+                            isSnake = isSnake + ' body-horizontal'
+                        }
+                    }
+
+                    this.container.insertAdjacentHTML('beforeend', '<div class="grid' + isSnake + isWall + '" data-id="' + x + '"></div>');
+                }
+
+                this.grids = document.getElementsByClassName('grid');
+                this.direction = -1 * this.gridCalc ; 
+                this.delayTime = 175;
+                this.fruitEaten = 0;
+                this.isGameOver = false;
+                this.createWall(344, 351);
+                this.createWall(233, 237);
+                this.createWall(83, 88);
+            
+                }
+
+
+            createWall(start, end) {
+                for (let x = start; x < end; x++) {
+                    document.querySelector('.grid[data-id="' + x + '"]').classList.add(this.wallClass);
+                }
+            }
+
+
+            moveSnake() {
+                let thisClass = this;
+                if (this.isGameOver) return;
+                this.snakeLooper();
+                window.setTimeout(function () {
+                    thisClass.moveSnake();
+                }, thisClass.delayTime);
+            }
+
+
+
+            snakeLooper() {
+                let temporarySnakeBody = [];
+                let lastKey = this.snakeBody[this.snakeBody.length - 1];
+                let newHead = lastKey + this.direction;
+                if (newHead < 0 || newHead >= this.totalGrid || 
+                    (this.direction === -1 && lastKey % this.gridCalc === 0) || 
+                    (this.direction === 1 && lastKey % this.gridCalc === (this.gridCalc - 1)) || 
+                    document.querySelector('.grid[data-id="' + newHead + '"]').classList.contains(this.wallClass)) {
+                    this.gameOver();
+                    return;
+                }
+
+                if (this.snakeBody.includes(newHead)) {
+                    this.gameOver();
+                    return;
+                }
+                console.log(lastKey,newHead)
+
+                if (document.querySelector('.grid[data-id="' + newHead + '"]').classList.contains(this.fruitClass)) {
+                    // Reproduzir o som quando a fruta e comida
+                    document.getElementById('eat-sound').play();
+
+                    document.querySelector('.grid[data-id="' + newHead + '"]').classList.remove(this.fruitClass);
+
+                    this.snakeBody.push(newHead);
+                    document.querySelector('.grid[data-id="' + newHead + '"]').classList.add(this.snakeClass);
+                    this.generateFruit();
+                    this.fruitEaten++;
+                    this.updateScore(this.fruitEaten);
+
+                    if (this.fruitEaten % 5 === 0) {
+                        this.delayTime = Math.max(this.delayTime - 10);
+                    }
+
+                } else {
+                    let tail = this.snakeBody.shift();
+                    document.querySelector('.grid[data-id="' + tail + '"]').classList.remove(this.snakeClass);
+                    this.snakeBody.push(newHead);
+                    document.querySelector('.grid[data-id="' + newHead + '"]').classList.add(this.snakeClass);
+                }
+
+                this.updateHeadDirection();
+                this.updateTailDirection();
+                this.updateBodyDirections();
+                this.isKeyPressed = false;
+            }
+
+
+
+            keyLogger() {
+                let thisClass = this;
+                window.addEventListener('keyup', function (event) {
+                    if (thisClass.isKeyPressed) {
+                        return false;
+                    }
+                    if (thisClass.direction == 1 || thisClass.direction == -1) {
+                        if (event.keyCode == 38) {
+                            thisClass.direction = -1 * thisClass.gridCalc;
+                            thisClass.isKeyPressed = true;
+                        } else if (event.keyCode == 40) {
+                            thisClass.direction = thisClass.gridCalc;
+                            thisClass.isKeyPressed = true;
+                        }
+                    } else if (thisClass.direction == thisClass.gridCalc || thisClass.direction == (-1*thisClass.gridCalc)) {
+                        if (event.keyCode == 37) {
+                            thisClass.direction = -1;
+                            thisClass.isKeyPressed = true;
+                        } else if (event.keyCode == 39) {
+                            thisClass.direction = 1;
+                            thisClass.isKeyPressed = true;
+                        }
+                    }
+                });
+            }
+
+
+
+            generateFruit() {
+                const availablePositions = [];
+
+                for (let i = 0; i < this.totalGrid; i++) {
+                    if (!this.snakeBody.includes(i) && !document.querySelector('.grid[data-id="' + i + '"]').classList.contains(this.wallClass)) {
+                        availablePositions.push(i);
+                    }
+                }
+
+
+                if (availablePositions.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * availablePositions.length);
+                    const fruitPosition = availablePositions[randomIndex];
+                    document.querySelector('.grid[data-id="' + fruitPosition + '"]').classList.add(this.fruitClass);
+                }
+            }
+
+
+            gameOver() {
+                this.isGameOver = true;
+                
+                document.getElementById('game-over-sound').play();
+                document.querySelector('.game-over').style.display = 'block';
+                this.saveHighscore();
+            }
+
+
+
+            updateScore(score) {
+                this.scoreDisplay.textContent = `Score: ${score}`;
+            }
+
+        
+
+
+            loadHighscore() {
+                const highscore = localStorage.getItem('highscore') || 0;
+                this.highscoreDisplay.textContent = `Highscore: ${highscore}`;
+            }
+
+        
+
+            saveHighscore() {
+                const currentScore = this.fruitEaten;
+                let highscore = localStorage.getItem('highscore') || 0;
+
+                if (currentScore > highscore) {
+                    localStorage.setItem('highscore', currentScore);
+                    this.highscoreDisplay.textContent = `Highscore: ${currentScore}`;
+                }
+            }
+
+
+
+            getHeadDirection(direction) {
+                if (direction === -1* this.gridCalc) {
+                    return 'up';
+                } else if (direction === this.gridCalc) {
+                    return 'down';
+                } else if (direction === -1) {
+                    return 'left';
+                } else if (direction === 1) {
+                    return 'right';
+                } else {
+                    return 'up';
+                }
+            }
+
+
+
+            getTailDirection(prev, next) {
+                if (prev - next === this.gridCalc) {
+                    return 'down'; 
+                } else if (prev - next === -1*this.gridCalc) {
+                    return 'up'; 
+                } else if (prev - next === 1) {
+                    return 'right'; 
+                } else if (prev - next === -1) {
+                    return 'left'; 
+                }
+            }
+
+
+            getBodyDirection(prev, current, next) {
+                if ((prev % this.gridCalc === next % this.gridCalc) && (prev % this.gridCalc === current % this.gridCalc)) {
+                    return 'body-vertical';
+                } else if (Math.floor(prev / this.gridCalc) === Math.floor(next / this.gridCalc) && Math.floor(prev / this.gridCalc) === Math.floor(current / this.gridCalc)) {
+                    return 'body-horizontal';
+                } else {
+                    if ((prev - current === 1 && next - current === this.gridCalc) || (prev - current === this.gridCalc && next - current === 1)) {
+                        return 'body-corner-up-left';
+                    } else if ((prev - current === -1 && next - current === this.gridCalc) || (prev - current === this.gridCalc && next - current === -1)) {
+                        return 'body-corner-up-right';
+                    } else if ((prev - current === 1 && next - current === (-1*this.gridCalc)) || (prev - current === (-1*this.gridCalc) && next - current === 1)) {
+                        return 'body-corner-down-left';
+                    } else if ((prev - current === -1 && next - current === (-1*this.gridCalc)) || (prev - current === (-1*this.gridCalc) && next - current === -1)) {
+                        return 'body-corner-down-right';
+                    }
+                }
+            }
+
+
+
+            updateHeadDirection() {
+                // Remove as classes de direcao da cabeca de todas as celulas
+                Array.from(document.querySelectorAll('.grid')).forEach(grid => grid.classList.remove('head-up', 'head-down', 'head-left', 'head-right'));
+
+                // Identifica a celula que representa a cabeca da cobra
+                const head = document.querySelector('.grid[data-id="' + this.snakeBody[this.snakeBody.length - 1] + '"]');
+
+                // Adiciona a classe correspondente a direcao atual da cabeca
+                head.classList.add('head-' + this.getHeadDirection(this.direction));
+            }
+
+            
+
+            updateTailDirection() {
+                // Remove as classes de direcao da cauda de todas as celulas
+                Array.from(document.querySelectorAll('.grid')).forEach(grid => grid.classList.remove('tail-up', 'tail-down', 'tail-left', 'tail-right'));
+                
+                const tailIndex = 0;  // O indice da cauda e sempre o primeiro elemento do array
+                const tail = document.querySelector('.grid[data-id="' + this.snakeBody[tailIndex] + '"]');
+                const nextSegment = this.snakeBody[tailIndex + 1]; // Identifica a proxima posicao do segmento
+                const tailDirection = this.getTailDirection(this.snakeBody[tailIndex], nextSegment);
+                tail.classList.add('tail-' + tailDirection);
+            }
+
+
+
+
+            updateBodyDirections() {
+                // Remove as classes de direcao do corpo de todas as celulas
+                Array.from(document.querySelectorAll('.grid')).forEach(grid => grid.classList.remove('body-horizontal', 'body-vertical', 'body-corner-up-left', 'body-corner-up-right', 'body-corner-down-left', 'body-corner-down-right'));
+
+                for (let i = 1; i < this.snakeBody.length - 1; i++) {
+                    const segment = this.snakeBody[i];
+                    const prevSegment = this.snakeBody[i - 1];
+                    const nextSegment = this.snakeBody[i + 1];
+
+                    const bodyDirection = this.getBodyDirection(prevSegment, segment, nextSegment);
+                    document.querySelector('.grid[data-id="' + segment + '"]').classList.add(bodyDirection);
+                }
+            }
+
+        }
+
+        new Snake();
+    </script>
+</body>
+</html>
